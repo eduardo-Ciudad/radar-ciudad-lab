@@ -1,15 +1,15 @@
 package com.eduar.radarciudadlab.application;
 
-
-
 import com.eduar.radarciudadlab.domain.exception.SiteNotFoundException;
 import com.eduar.radarciudadlab.domain.model.BreakdownDimension;
 import com.eduar.radarciudadlab.domain.model.DailyMetrics;
 import com.eduar.radarciudadlab.domain.model.DateRange;
 import com.eduar.radarciudadlab.domain.model.MetricsSummary;
 import com.eduar.radarciudadlab.domain.model.PeriodComparison;
+import com.eduar.radarciudadlab.domain.model.SiteOverview;
 import com.eduar.radarciudadlab.domain.model.TrackedSite;
 import com.eduar.radarciudadlab.domain.port.out.AnalyticsMetricsRepository;
+import com.eduar.radarciudadlab.domain.port.out.SiteOverviewRepository;
 import com.eduar.radarciudadlab.domain.port.out.TrackedSiteRepository;
 import org.springframework.stereotype.Service;
 
@@ -24,10 +24,13 @@ public class SiteMetricsQueryService {
 
     private final AnalyticsMetricsRepository metrics;
     private final TrackedSiteRepository sites;
+    private final SiteOverviewRepository overviews;
 
-    public SiteMetricsQueryService(AnalyticsMetricsRepository metrics, TrackedSiteRepository sites) {
+    public SiteMetricsQueryService(AnalyticsMetricsRepository metrics, TrackedSiteRepository sites,
+                                   SiteOverviewRepository overviews) {
         this.metrics = metrics;
         this.sites = sites;
+        this.overviews = overviews;
     }
 
     public SiteDashboard getDashboard(Long siteId, DateRange range) {
@@ -35,6 +38,8 @@ public class SiteMetricsQueryService {
             throw new IllegalArgumentException("Intervalo máximo é de " + MAX_RANGE_DAYS + " dias");
         }
         TrackedSite site = sites.findById(siteId).orElseThrow(() -> new SiteNotFoundException(siteId));
+        // Mesmo filtro de visibilidade do TrackedSite: se ele existe, o overview também existe
+        SiteOverview overview = overviews.findById(siteId).orElseThrow(() -> new SiteNotFoundException(siteId));
 
         List<DailyMetrics> daily = metrics.findDailyMetrics(siteId, range);
         MetricsSummary current = MetricsSummary.of(range, daily);
@@ -44,6 +49,8 @@ public class SiteMetricsQueryService {
 
         return new SiteDashboard(
                 site,
+                overview.gaStatus(),
+                overview.dataSince(),
                 range,
                 current,
                 previous,

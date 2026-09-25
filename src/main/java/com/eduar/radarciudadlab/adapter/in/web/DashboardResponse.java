@@ -2,11 +2,7 @@ package com.eduar.radarciudadlab.adapter.in.web;
 
 
 import com.eduar.radarciudadlab.application.SiteDashboard;
-import com.eduar.radarciudadlab.domain.model.BreakdownDimension;
-import com.eduar.radarciudadlab.domain.model.BreakdownTotal;
-import com.eduar.radarciudadlab.domain.model.DailyMetrics;
-import com.eduar.radarciudadlab.domain.model.MetricsSummary;
-import com.eduar.radarciudadlab.domain.model.PeriodComparison;
+import com.eduar.radarciudadlab.domain.model.*;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -14,6 +10,8 @@ import java.util.List;
 
 public record DashboardResponse(
         SiteInfo site,
+        AnalyticsAccessStatus gaStatus,
+        LocalDate dataSince,
         Period period,
         Summary current,
         Summary previous,
@@ -82,6 +80,8 @@ public record DashboardResponse(
         long total = d.current().sessions();
         return new DashboardResponse(
                 new SiteInfo(d.site().id(), d.site().name()),
+                d.gaStatus(),
+                d.dataSince(),
                 new Period(d.range().from(), d.range().to(), d.range().days()),
                 Summary.from(d.current()),
                 Summary.from(d.previous()),
