@@ -1,0 +1,26 @@
+radar:
+  timezone: America/Sao_Paulo
+  analytics:
+    google:
+      credentials-path: ${GA_CREDENTIALS_PATH:secret/radar-ciudadlab-cbad39e44a50.json}
+      row-limit: 10000
+    sync:
+      enabled: true
+      cron: "0 0 6 * * *"
+  security:
+    jwt:
+      secret: ${JWT_SECRET:}        # obrigatório: Base64 com no mínimo 32 bytes
+      expiration: 12h
+      issuer: radar-ciudadlab
+    cors:
+      allowed-origins: http://localhost:3000
+    admin: # usado só na 1ª subida, se não existir nenhum usuário
+      email: ${ADMIN_EMAIL:}
+      password: ${ADMIN_PASSWORD:}
+
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+
