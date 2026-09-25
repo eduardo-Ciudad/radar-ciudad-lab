@@ -1,6 +1,7 @@
 package com.eduar.radarciudadlab.adapter.in.web;
 
 import com.eduar.radarciudadlab.application.SiteDashboard;
+import com.eduar.radarciudadlab.domain.model.AnalyticsAccessStatus;
 import com.eduar.radarciudadlab.domain.model.BreakdownDimension;
 import com.eduar.radarciudadlab.domain.model.BreakdownTotal;
 import com.eduar.radarciudadlab.domain.model.DailyMetrics;
@@ -32,6 +33,14 @@ class DashboardResponseTest {
     }
 
     @Test
+    void expoeStatusDoGaEInicioDaColeta() {
+        DashboardResponse response = DashboardResponse.from(dashboard(79, 49, 0));
+
+        assertEquals(AnalyticsAccessStatus.OK, response.gaStatus());
+        assertEquals(LocalDate.of(2026, 7, 14), response.dataSince());
+    }
+
+    @Test
     void calculaParticipacaoDosCanaisENaoDosEventos() {
         DashboardResponse response = DashboardResponse.from(dashboard(79, 49, 0));
 
@@ -60,6 +69,7 @@ class DashboardResponseTest {
 
         return new SiteDashboard(
                 new TrackedSite(1L, "CiudadLab", "554830905"),
+                AnalyticsAccessStatus.OK, LocalDate.of(2026, 7, 14),
                 WEEK, current, previous, PeriodComparison.between(current, previous), daily,
                 List.of(new BreakdownTotal(BreakdownDimension.CHANNEL, "Direct", 39, 26, 80, 200, 0),
                         new BreakdownTotal(BreakdownDimension.CHANNEL, "Organic Social", 28, 17, 50, 150, 0)),
