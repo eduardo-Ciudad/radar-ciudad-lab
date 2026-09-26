@@ -40,6 +40,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // sync gasta cota do Google: só administrador
                         .requestMatchers(HttpMethod.POST, "/api/sites/sync", "/api/sites/*/sync").hasRole("ADMIN")
+                        // importar leads grava no banco: só administrador
+                        .requestMatchers(HttpMethod.POST, "/api/leads/import").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth -> oauth
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
