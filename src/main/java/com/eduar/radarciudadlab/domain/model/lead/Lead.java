@@ -1,6 +1,5 @@
 package com.eduar.radarciudadlab.domain.model.lead;
 
-import com.google.type.PhoneNumber;
 
 import java.math.BigDecimal;
 import java.time.Instant;
