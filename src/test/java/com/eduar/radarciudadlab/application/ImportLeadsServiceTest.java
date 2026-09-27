@@ -5,26 +5,26 @@ import com.eduar.radarciudadlab.domain.exception.InvalidLeadFileException;
 import com.eduar.radarciudadlab.domain.model.lead.ImportBatch;
 import com.eduar.radarciudadlab.domain.model.lead.ImportReport;
 import com.eduar.radarciudadlab.domain.model.lead.Lead;
+import com.eduar.radarciudadlab.domain.model.lead.LeadScorer;
 import com.eduar.radarciudadlab.domain.model.lead.LeadStatus;
 import com.eduar.radarciudadlab.domain.model.lead.ParsedLeadFile;
 import com.eduar.radarciudadlab.domain.model.lead.PhoneNumber;
 import com.eduar.radarciudadlab.domain.model.lead.RawLeadRow;
 import com.eduar.radarciudadlab.domain.port.out.ImportBatchRepository;
 import com.eduar.radarciudadlab.domain.port.out.LeadFileParser;
-import com.eduar.radarciudadlab.domain.port.out.LeadRepository;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /** Fluxo da importação com fakes em memória: sem banco, sem Spring. */
@@ -34,14 +34,14 @@ class ImportLeadsServiceTest {
             "R. Delegado Pinto de Tolêdo, 3250 - Centro, São José do Rio Preto - SP, 15010-080";
 
     private final FakeParser parser = new FakeParser();
-    private final FakeLeads leads = new FakeLeads();
+    private final InMemoryLeadRepository leads = new InMemoryLeadRepository();
     private final FakeBatches batches = new FakeBatches();
     private final ImportLeadsService service = new ImportLeadsService(parser, new LeadRowNormalizer(raw -> {
         String digits = raw.replaceAll("\\D", "");
         return digits.length() >= 12
                 ? Optional.of(new PhoneNumber("+" + digits, digits.length() == 13))
                 : Optional.empty();
-    }), leads, batches);
+    }), leads, batches, new LeadScorer(Set.of("fisioterap", "pilates")));
 
     @Test
     void criaLeadsEPulaLinhasInvalidasEDuplicadas() {
@@ -63,18 +63,33 @@ class ImportLeadsServiceTest {
     }
 
     @Test
+    void calculaScoreERegistraEntradaNoFunil() {
+        parser.rows = List.of(row(2, "Cordial Pro Pilates", "+55 17 99772-6959", "5"));
+
+        service.importFile("leads.csv", bytes("score"));
+
+        Lead lead = leads.byName("Cordial Pro Pilates");
+        // nota 5 (35) + avaliações desconhecidas (10) + celular (15) + sem site (15) + pilates (10)
+        assertEquals(85, lead.score());
+        assertEquals(1, leads.statusChanges.size());
+        assertNull(leads.statusChanges.get(0).from());
+        assertEquals(LeadStatus.NOVO, leads.statusChanges.get(0).to());
+        assertNotNull(leads.statusChanges.get(0).note());
+    }
+
+    @Test
     void reimportacaoAtualizaSoDadosDaFerramenta() {
         parser.rows = List.of(row(2, "Cordial Pro", "+55 17 99772-6959", "4.5"));
         service.importFile("leads.csv", bytes("v1"));
 
         // você mexeu no lead pelo sistema
-        Lead saved = leads.byKey.values().iterator().next();
-        leads.byKey.put(saved.dedupKey(), withStatusAndNotes(saved, LeadStatus.REUNIAO, "ligar sexta"));
+        Lead saved = leads.byName("Cordial Pro");
+        leads.byId.put(saved.id(), withStatusAndNotes(saved, LeadStatus.REUNIAO, "ligar sexta"));
 
         parser.rows = List.of(row(2, "Cordial Pro", "+55 17 99772-6959", "4.9"));
         ImportReport report = service.importFile("leads-2.csv", bytes("v2"));
 
-        Lead after = leads.byKey.get(saved.dedupKey());
+        Lead after = leads.byId.get(saved.id());
         assertEquals(0, report.created());
         assertEquals(1, report.updated());
         assertEquals(new BigDecimal("4.9"), after.rating());          // dado da ferramenta: atualiza
@@ -82,6 +97,7 @@ class ImportLeadsServiceTest {
         assertEquals("ligar sexta", after.notes());
         assertEquals(saved.firstBatchId(), after.firstBatchId());
         assertEquals(report.batchId(), after.lastBatchId());
+        assertEquals(1, leads.statusChanges.size());                  // reimportação não mexe no funil
     }
 
     @Test
@@ -125,32 +141,6 @@ class ImportLeadsServiceTest {
         @Override
         public ParsedLeadFile parse(byte[] content) {
             return new ParsedLeadFile(new String(content, StandardCharsets.UTF_8), rows);
-        }
-    }
-
-    private static class FakeLeads implements LeadRepository {
-        final Map<String, Lead> byKey = new HashMap<>();
-        long nextId = 1;
-        int snapshots;
-
-        @Override
-        public List<Lead> findByDedupKeys(Collection<String> keys) {
-            return keys.stream().map(byKey::get).filter(l -> l != null).toList();
-        }
-
-        @Override
-        public Lead save(Lead l) {
-            Lead saved = l.id() != null ? l : new Lead(nextId++, l.dedupKey(), l.name(), l.category(), l.phoneE164(),
-                    l.mobile(), l.address(), l.websiteUrl(), l.instagramHandle(), l.rating(), l.reviewsCount(),
-                    l.status(), l.score(), l.scoreOverride(), l.notes(), l.aiSummary(), l.firstBatchId(),
-                    l.lastBatchId(), Instant.now(), Instant.now());
-            byKey.put(saved.dedupKey(), saved);
-            return saved;
-        }
-
-        @Override
-        public void saveSnapshot(Long leadId, Long batchId, BigDecimal rating, Integer reviewsCount) {
-            snapshots++;
         }
     }
 
