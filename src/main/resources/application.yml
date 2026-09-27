@@ -17,6 +17,18 @@ radar:
     admin: # usado só na 1ª subida, se não existir nenhum usuário
       email: ${ADMIN_EMAIL:}
       password: ${ADMIN_PASSWORD:}
+  leads:
+    score:
+      # nicho-alvo: palavras comparadas sem acento com categoria e nome (vale +10 no score)
+      # depois de mudar, chame POST /api/leads/rescore
+      target-keywords:
+        - fisioterap
+        - pilates
+        - quiropraxia
+        - osteopatia
+        - reabilitacao
+        - policlinica
+        - clinica
 
 spring:
   jpa:
