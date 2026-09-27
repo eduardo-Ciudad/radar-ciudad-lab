@@ -1,6 +1,7 @@
 package com.eduar.radarciudadlab.application;
 
 import com.eduar.radarciudadlab.domain.model.lead.AddressParser;
+import com.eduar.radarciudadlab.domain.model.lead.ContactNormalizer;
 import com.eduar.radarciudadlab.domain.model.lead.LeadDraft;
 import com.eduar.radarciudadlab.domain.model.lead.LeadStatus;
 import com.eduar.radarciudadlab.domain.model.lead.ParsedAddress;
@@ -15,16 +16,12 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 
 @Component
 public class LeadRowNormalizer {
 
     private static final BigDecimal MAX_RATING = BigDecimal.valueOf(5);
-    private static final Pattern INSTAGRAM_URL = Pattern.compile("instagram\\.com/([A-Za-z0-9._]+)");
 
     private final PhoneNormalizer phoneNormalizer;
 
@@ -73,7 +70,7 @@ public class LeadRowNormalizer {
                 phone,
                 address,
                 TextNormalizer.limit(TextNormalizer.blankToNull(row.website()), 500),
-                instagramHandle(row.instagram()),
+                ContactNormalizer.instagramHandle(row.instagram()),
                 rating,
                 LeadStatus.fromCsv(row.status()));
 
@@ -101,15 +98,5 @@ public class LeadRowNormalizer {
             warnings.add(new RowIssue(row.line(), "nota inválida ignorada: " + text));
             return null;
         }
-    }
-
-    private static String instagramHandle(String value) {
-        String text = TextNormalizer.blankToNull(value);
-        if (text == null) {
-            return null;
-        }
-        Matcher url = INSTAGRAM_URL.matcher(text);
-        String handle = url.find() ? url.group(1) : text.replaceFirst("^@", "");
-        return TextNormalizer.limit(handle.toLowerCase(Locale.ROOT), 100);
     }
 }
