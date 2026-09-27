@@ -2,9 +2,11 @@ package com.eduar.radarciudadlab.adapter.in.web;
 
 import com.eduar.radarciudadlab.domain.exception.DuplicateImportException;
 import com.eduar.radarciudadlab.domain.exception.InvalidLeadFileException;
+import com.eduar.radarciudadlab.domain.exception.LeadNotFoundException;
 import com.eduar.radarciudadlab.domain.exception.SiteNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -14,6 +16,7 @@ import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import javax.naming.AuthenticationException;
+import java.time.temporal.Temporal;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
@@ -29,11 +32,20 @@ public class ApiExceptionHandler {
         return problem(HttpStatus.BAD_REQUEST, "Requisição inválida", e.getMessage());
     }
 
-    /** Ex.: ?from=24/09/2026 em vez de ?from=2026-09-24 */
+    /** Ex.: ?from=24/09/2026 em vez de ?from=2026-09-24, ou ?status=novo em vez de NOVO */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ProblemDetail typeMismatch(MethodArgumentTypeMismatchException e) {
+        Class<?> type = e.getRequiredType();
+        String hint;
+        if (type != null && Temporal.class.isAssignableFrom(type)) {
+            hint = " Datas devem ser AAAA-MM-DD.";
+        } else if (type != null && type.isEnum()) {
+            hint = " Valores aceitos: " + java.util.Arrays.toString(type.getEnumConstants()) + ".";
+        } else {
+            hint = "";
+        }
         return problem(HttpStatus.BAD_REQUEST, "Parâmetro inválido",
-                "O parâmetro '" + e.getName() + "' está em formato inválido. Datas devem ser AAAA-MM-DD.");
+                "O parâmetro '" + e.getName() + "' está em formato inválido." + hint);
     }
 
     @ExceptionHandler(AuthenticationException.class)
@@ -48,6 +60,23 @@ public class ApiExceptionHandler {
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
                 .collect(Collectors.joining("; "));
         return problem(HttpStatus.BAD_REQUEST, "Dados inválidos", detail);
+    }
+
+    // ---- Leads ----
+
+    @ExceptionHandler(LeadNotFoundException.class)
+    public ProblemDetail leadNotFound(LeadNotFoundException e) {
+        return problem(HttpStatus.NOT_FOUND, "Lead não encontrado", e.getMessage());
+    }
+
+    /** JSON malformado ou valor que não cabe no tipo (ex.: "status": "GANHO"). */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ProblemDetail unreadableBody(HttpMessageNotReadableException e) {
+        String detail = "JSON inválido ou com valor fora do esperado.";
+        if (String.valueOf(e.getMessage()).contains("LeadStatus")) {
+            detail += " Status aceitos: NOVO, CONTATADO, REUNIAO, PROPOSTA, FECHADO, PERDIDO, DESCARTADO.";
+        }
+        return problem(HttpStatus.BAD_REQUEST, "Corpo inválido", detail);
     }
 
     // ---- Importação de leads ----
