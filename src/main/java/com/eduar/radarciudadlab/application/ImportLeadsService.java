@@ -6,6 +6,7 @@ import com.eduar.radarciudadlab.domain.model.lead.ImportBatch;
 import com.eduar.radarciudadlab.domain.model.lead.ImportReport;
 import com.eduar.radarciudadlab.domain.model.lead.Lead;
 import com.eduar.radarciudadlab.domain.model.lead.LeadDraft;
+import com.eduar.radarciudadlab.domain.model.lead.LeadScorer;
 import com.eduar.radarciudadlab.domain.model.lead.ParsedLeadFile;
 import com.eduar.radarciudadlab.domain.model.lead.RawLeadRow;
 import com.eduar.radarciudadlab.domain.model.lead.RowIssue;
@@ -39,13 +40,15 @@ public class ImportLeadsService {
     private final LeadRowNormalizer normalizer;
     private final LeadRepository leads;
     private final ImportBatchRepository batches;
+    private final LeadScorer scorer;
 
     public ImportLeadsService(LeadFileParser parser, LeadRowNormalizer normalizer,
-                              LeadRepository leads, ImportBatchRepository batches) {
+                              LeadRepository leads, ImportBatchRepository batches, LeadScorer scorer) {
         this.parser = parser;
         this.normalizer = normalizer;
         this.leads = leads;
         this.batches = batches;
+        this.scorer = scorer;
     }
 
     @Transactional
@@ -86,12 +89,16 @@ public class ImportLeadsService {
         int updated = 0;
         for (LeadDraft draft : drafts.values()) {
             Lead current = existing.get(draft.dedupKey());
-            Lead saved;
+            Lead lead = current == null
+                    ? Lead.createFrom(draft, batch.id())
+                    : current.refreshFrom(draft, batch.id());
+            // Score recalculado a cada importação: nota e telefone podem ter mudado
+            Lead saved = leads.save(lead.withScore(scorer.score(lead).total()));
             if (current == null) {
-                saved = leads.save(Lead.createFrom(draft, batch.id()));
+                // Entrada no funil: é o ponto de partida para medir tempo em cada etapa
+                leads.recordStatusChange(saved.id(), null, saved.status(), "importado de " + batch.fileName());
                 created++;
             } else {
-                saved = leads.save(current.refreshFrom(draft, batch.id()));
                 updated++;
             }
             // Histórico só quando o arquivo trouxe nota: snapshot vazio não diz nada sobre evolução
