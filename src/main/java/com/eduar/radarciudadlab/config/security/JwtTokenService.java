@@ -34,7 +34,8 @@ public class JwtTokenService {
                 .issuedAt(now)
                 .expiresAt(expiresAt)
                 .subject(user.email())
-                .claim("uid", user.id())
+                .claim(ActiveUserTokenValidator.USER_ID_CLAIM, user.id())
+                .claim(ActiveUserTokenValidator.VERSION_CLAIM, user.tokenVersion())
                 .claim("roles", List.of(user.role().name()))
                 .build();
 
