@@ -1,5 +1,6 @@
 package com.eduar.radarciudadlab;
 
+import com.eduar.radarciudadlab.domain.model.AppUser;
 import com.eduar.radarciudadlab.domain.model.UserRole;
 import com.eduar.radarciudadlab.domain.port.out.UserRepository;
 import com.jayway.jsonpath.JsonPath;
@@ -9,11 +10,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -33,7 +34,6 @@ class SecurityIT {
     @Autowired MockMvc mvc;
     @Autowired UserRepository users;
     @Autowired PasswordEncoder passwordEncoder;
-    @Autowired NamedParameterJdbcTemplate jdbc;
 
     @BeforeEach
     void criaUsuarios() {
@@ -72,8 +72,7 @@ class SecurityIT {
 
     @Test
     void usuarioDesativadoRecebe401Generico() throws Exception {
-        jdbc.update("UPDATE app_user SET active = FALSE WHERE lower(email) = lower(:email)",
-                new MapSqlParameterSource("email", "viewer@teste.local"));
+        users.deactivate(userId("viewer@teste.local"));
 
         mvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -108,6 +107,111 @@ class SecurityIT {
 
         mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + adulterado))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void cincoFalhasBloqueiamAteASenhaCerta() throws Exception {
+        // E-mail aleatório: o limiter é um bean compartilhado entre os testes e não volta com o rollback
+        String email = randomEmail();
+        users.create(email, passwordEncoder.encode("senha-correta-123"), UserRole.VIEWER);
+
+        for (int i = 0; i < 5; i++) {
+            mvc.perform(post("/api/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(credentials(email, "senha-errada-" + i)))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        mvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(credentials(email, "senha-correta-123")))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().exists("Retry-After"))
+                .andExpect(jsonPath("$.title").value("Muitas tentativas"));
+    }
+
+    @Test
+    void emailInexistenteTambemEBloqueado() throws Exception {
+        // Se só contas reais fossem bloqueadas, o 429 revelaria quais e-mails existem
+        String email = randomEmail();
+
+        for (int i = 0; i < 5; i++) {
+            mvc.perform(post("/api/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(credentials(email, "senha-qualquer-" + i)))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        mvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(credentials(email, "senha-qualquer-5")))
+                .andExpect(status().isTooManyRequests());
+    }
+
+    @Test
+    void tokenParaDeFuncionarQuandoUsuarioEDesativado() throws Exception {
+        String token = login("viewer@teste.local", "senha-viewer-123");
+
+        users.deactivate(userId("viewer@teste.local"));
+
+        mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void logoutRevogaOTokenEUmLoginNovoFunciona() throws Exception {
+        String token = login("admin@teste.local", "senha-admin-123");
+
+        mvc.perform(post("/api/auth/logout").header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+
+        String novo = login("admin@teste.local", "senha-admin-123");
+        mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + novo))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void viewerNaoVeSitesNemDashboards() throws Exception {
+        // Sem vínculo usuário -> cliente, VIEWER veria o painel de todos os clientes: bloqueado até existir
+        String token = login("viewer@teste.local", "senha-viewer-123");
+
+        mvc.perform(get("/api/sites").header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.title").value("Acesso negado"));
+        mvc.perform(get("/api/sites/1/dashboard").header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/sites/1/insights").header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void viewerContinuaVendoASessaoEFazendoLogout() throws Exception {
+        String token = login("viewer@teste.local", "senha-viewer-123");
+
+        mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roles[0]").value("VIEWER"));
+        mvc.perform(post("/api/auth/logout").header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void adminContinuaListandoSites() throws Exception {
+        String token = login("admin@teste.local", "senha-admin-123");
+
+        mvc.perform(get("/api/sites").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+    }
+
+    private Long userId(String email) {
+        return users.findByEmail(email).map(AppUser::id).orElseThrow();
+    }
+
+    private static String randomEmail() {
+        return "limite-" + UUID.randomUUID() + "@teste.local";
     }
 
     private String login(String email, String password) throws Exception {
