@@ -19,7 +19,8 @@ public class JdbcUserRepository implements UserRepository {
             rs.getString("email"),
             rs.getString("password_hash"),
             UserRole.valueOf(rs.getString("role")),
-            rs.getBoolean("active"));
+            rs.getBoolean("active"),
+            rs.getInt("token_version"));
 
     private final NamedParameterJdbcTemplate jdbc;
 
@@ -30,7 +31,7 @@ public class JdbcUserRepository implements UserRepository {
     @Override
     public Optional<AppUser> findByEmail(String email) {
         return jdbc.query("""
-                SELECT id, email, password_hash, role, active
+                SELECT id, email, password_hash, role, active, token_version
                 FROM app_user
                 WHERE lower(email) = lower(:email)
                 """, new MapSqlParameterSource("email", email), MAPPER)
@@ -54,12 +55,35 @@ public class JdbcUserRepository implements UserRepository {
                 .addValue("email", email)
                 .addValue("hash", passwordHash)
                 .addValue("role", role.name()), Long.class);
-        return new AppUser(id, email, passwordHash, role, true);
+        return new AppUser(id, email, passwordHash, role, true, 0);
     }
 
     @Override
     public void recordLogin(Long userId) {
         jdbc.update("UPDATE app_user SET last_login_at = now() WHERE id = :id",
+                new MapSqlParameterSource("id", userId));
+    }
+
+    @Override
+    public Optional<AppUser> findById(Long userId) {
+        return jdbc.query("""
+                SELECT id, email, password_hash, role, active, token_version
+                FROM app_user
+                WHERE id = :id
+                """, new MapSqlParameterSource("id", userId), MAPPER)
+                .stream()
+                .findFirst();
+    }
+
+    @Override
+    public void revokeTokens(Long userId) {
+        jdbc.update("UPDATE app_user SET token_version = token_version + 1 WHERE id = :id",
+                new MapSqlParameterSource("id", userId));
+    }
+
+    @Override
+    public void deactivate(Long userId) {
+        jdbc.update("UPDATE app_user SET active = FALSE, token_version = token_version + 1 WHERE id = :id",
                 new MapSqlParameterSource("id", userId));
     }
 }
