@@ -37,3 +37,4 @@ build/
 secret/
 *.json.key
 .env
+secrets/
