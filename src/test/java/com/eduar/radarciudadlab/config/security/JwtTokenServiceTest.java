@@ -61,6 +61,7 @@ class JwtTokenServiceTest {
                 new SecurityProperties.Jwt("nao-usado", EXPIRATION, ISSUER),
                 new SecurityProperties.Cors(List.of()),
                 new SecurityProperties.Admin(null, null),
-                new SecurityProperties.Login(5, Duration.ofMinutes(15), Duration.ofMinutes(15)));
+                new SecurityProperties.Login(5, Duration.ofMinutes(15), Duration.ofMinutes(15)),
+                new SecurityProperties.ClientKey(null, false));
     }
 }
