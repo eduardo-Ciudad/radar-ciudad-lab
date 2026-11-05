@@ -31,7 +31,7 @@ Projeto desenvolvido por mim. O frontend em Next.js fica num repositório separa
 
 **JDBC onde é relatório, JPA onde é entidade.** As tabelas de analytics são escritas e consultadas com `NamedParameterJdbcTemplate`, porque são agregações e upserts em lote. O módulo de leads usa JPA, porque tem entidade com ciclo de vida e histórico. As consultas do funil, que são leitura pesada, também vão por JDBC.
 
-**Segurança como resource server.** Login próprio que emite JWT HS256, validado pelo `oauth2-resource-server` do Spring Security. Papéis ADMIN e VIEWER: só o ADMIN sincroniza e mexe nos leads. Os erros 401 e 403 seguem o formato `ProblemDetail`. O primeiro admin é criado na subida a partir de variáveis de ambiente.
+**Segurança como resource server.** Login próprio que emite JWT HS256, validado pelo `oauth2-resource-server` do Spring Security. Papéis ADMIN e VIEWER, com a regra "nega por padrão": toda rota exige ADMIN, e o VIEWER só acessa a própria sessão (`/me` e logout). Ele fica bloqueado até existir o vínculo usuário → cliente, para um cliente nunca ver o painel de outro. O token carrega uma versão conferida no banco a cada requisição, então logout e desativação revogam na hora. O login tem limite de tentativas por conta. Os erros 401 e 403 seguem o formato `ProblemDetail`. O primeiro admin é criado na subida a partir de variáveis de ambiente.
 
 **Credenciais fora do repositório.** O acesso ao GA4 é por service account com papel de leitor em cada propriedade. A chave JSON fica numa pasta ignorada pelo git.
 
@@ -78,14 +78,14 @@ Pré-requisitos: Java 17 e PostgreSQL com um banco `radarciudad_db`.
 
 | Área | Rotas |
 |---|---|
-| Autenticação | `POST /api/auth/login`, `GET /api/auth/me` |
-| Sites | `GET /api/sites`, `GET /api/sites/{id}/dashboard`, `GET /api/sites/{id}/insights` |
+| Autenticação | `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout` |
+| Sites (ADMIN) | `GET /api/sites`, `GET /api/sites/{id}/dashboard`, `GET /api/sites/{id}/insights` |
 | Sincronização (ADMIN) | `POST /api/sites/{id}/sync`, `POST /api/sites/sync` |
 | Leads (ADMIN) | `POST /api/leads/import`, `GET /api/leads/imports`, `GET /api/leads/board`, `GET /api/leads`, `GET /api/leads/filters`, `GET /api/leads/{id}`, `PATCH /api/leads/{id}`, `POST /api/leads/rescore` |
 
 ## Estado atual
 
-Analytics e funil de leads funcionando localmente. Antes de ir para servidor, faltam rate limit no login, refresh token e a gestão de usuários VIEWER.
+Analytics, funil de leads e segurança da API prontos; em preparação para produção. Ficam para quando clientes tiverem acesso ao painel: vínculo usuário → cliente, gestão de usuários VIEWER e refresh token.
 
 ## Autor
 
