@@ -1,5 +1,6 @@
 package com.eduar.radarciudadlab.adapter.in.web;
 
+import com.eduar.radarciudadlab.config.security.LoginBlockedException;
 import com.eduar.radarciudadlab.domain.exception.DuplicateImportException;
 import com.eduar.radarciudadlab.domain.exception.InvalidLeadFileException;
 import com.eduar.radarciudadlab.domain.exception.LeadNotFoundException;
@@ -60,6 +61,18 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .header(HttpHeaders.WWW_AUTHENTICATE, "Bearer")
                 .body(problem(HttpStatus.UNAUTHORIZED, "Falha no login", "E-mail ou senha inválidos"));
+    }
+
+    /** E-mail estourou o limite de falhas (LoginAttemptLimiter). Retry-After em segundos, como pede o HTTP. */
+    @ExceptionHandler(LoginBlockedException.class)
+    public ResponseEntity<ProblemDetail> loginBlocked(LoginBlockedException e) {
+        long seconds = e.retryAfterSeconds();
+        long minutes = Math.max(1, (seconds + 59) / 60);
+        String detail = "Muitas tentativas de login. Tente novamente em " + minutes
+                + (minutes == 1 ? " minuto." : " minutos.");
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(seconds))
+                .body(problem(HttpStatus.TOO_MANY_REQUESTS, "Muitas tentativas", detail));
     }
 
     /** Corpo da requisição inválido (ex.: e-mail sem @, senha em branco). */
