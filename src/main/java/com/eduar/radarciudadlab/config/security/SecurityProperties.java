@@ -17,7 +17,8 @@ public record SecurityProperties(
         @Valid @NotNull Jwt jwt,
         @Valid @DefaultValue Cors cors,
         @DefaultValue Admin admin,
-        @Valid @DefaultValue Login login
+        @Valid @DefaultValue Login login,
+        @DefaultValue ClientKey clientKey
 ) {
 
     public record Jwt(
@@ -37,4 +38,24 @@ public record SecurityProperties(
             @DefaultValue("15m") Duration window,
             @DefaultValue("15m") Duration lockDuration
     ) {}
+
+    /**
+     * Segredo compartilhado com o BFF, enviado no header X-Radar-Client-Key (ClientKeyFilter).
+     * required=true (profile prod) faz a aplicação recusar subir sem uma chave de 32+ caracteres.
+     */
+    public record ClientKey(String value, @DefaultValue("false") boolean required) {
+
+        public static final int MIN_LENGTH = 32;
+
+        public ClientKey {
+            if (required && (value == null || value.isBlank() || value.trim().length() < MIN_LENGTH)) {
+                throw new IllegalStateException("defina RADAR_CLIENT_KEY com no mínimo " + MIN_LENGTH
+                        + " caracteres (gere com: openssl rand -base64 48)");
+            }
+        }
+
+        public boolean enabled() {
+            return value != null && !value.isBlank();
+        }
+    }
 }
