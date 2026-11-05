@@ -38,11 +38,17 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // qualquer usuário logado (inclusive VIEWER) vê a própria sessão e faz logout
+                        .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
                         // sync gasta cota do Google: só administrador
                         .requestMatchers(HttpMethod.POST, "/api/sites/sync", "/api/sites/*/sync").hasRole("ADMIN")
                         // leads são prospecção interna: VIEWER (cliente) não pode ver nem editar
                         .requestMatchers("/api/leads/**").hasRole("ADMIN")
-                        .anyRequest().authenticated())
+                        // Nega por padrão: o VIEWER ainda não tem vínculo com cliente (app_user.client_id),
+                        // então liberar sites para ele exporia o painel de todos os clientes (IDOR).
+                        // Endpoint novo já nasce só ADMIN. As regras acima ficam para documentar a intenção.
+                        .anyRequest().hasRole("ADMIN"))
                 .oauth2ResourceServer(oauth -> oauth
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
                         .authenticationEntryPoint(errors)
