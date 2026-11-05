@@ -10,7 +10,7 @@ radar:
   security:
     jwt:
       secret: ${JWT_SECRET:}        # obrigatório: Base64 com no mínimo 32 bytes
-      expiration: 12h
+      expiration: 8h
       issuer: radar-ciudadlab
     cors:
       allowed-origins: http://localhost:3000
