@@ -31,7 +31,8 @@ class LoginAttemptLimiterTest {
                 new SecurityProperties.Jwt("nao-usado", Duration.ofHours(12), "radar-ciudadlab"),
                 new SecurityProperties.Cors(List.of()),
                 new SecurityProperties.Admin(null, null),
-                new SecurityProperties.Login(5, WINDOW, LOCK));
+                new SecurityProperties.Login(5, WINDOW, LOCK),
+                new SecurityProperties.ClientKey(null, false));
         limiter = new LoginAttemptLimiter(properties, clock);
     }
 
