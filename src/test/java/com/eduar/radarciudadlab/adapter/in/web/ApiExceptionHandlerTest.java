@@ -1,5 +1,6 @@
 package com.eduar.radarciudadlab.adapter.in.web;
 
+import com.eduar.radarciudadlab.config.security.LoginBlockedException;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -8,6 +9,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.Duration;
 
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.containsString;
@@ -50,6 +53,16 @@ class ApiExceptionHandlerTest {
                 .andExpect(content().string(not(containsString(FailingController.INTERNAL_MESSAGE))));
     }
 
+    @Test
+    void loginBloqueadoVira429ComRetryAfterEmSegundos() throws Exception {
+        mvc.perform(get("/test/login-blocked"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().string("Retry-After", "870"))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title").value("Muitas tentativas"))
+                .andExpect(jsonPath("$.detail").value("Muitas tentativas de login. Tente novamente em 15 minutos."));
+    }
+
     /** Aninhado na classe de teste: o TestTypeExcludeFilter impede que ele entre no contexto dos @SpringBootTest. */
     @RestController
     static class FailingController {
@@ -64,6 +77,12 @@ class ApiExceptionHandlerTest {
         @GetMapping("/test/disabled")
         void disabled() {
             throw new DisabledException(INTERNAL_MESSAGE);
+        }
+
+        /** 14min30s restantes: Retry-After 870 e a mensagem arredonda para 15 minutos. */
+        @GetMapping("/test/login-blocked")
+        void loginBlocked() {
+            throw new LoginBlockedException(Duration.ofSeconds(870));
         }
     }
 }
