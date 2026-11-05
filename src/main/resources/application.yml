@@ -14,6 +14,8 @@ radar:
       issuer: radar-ciudadlab
     cors:
       allowed-origins: http://localhost:3000
+    client-key: # segredo que só o BFF (Vercel) conhece; vazio = filtro desligado (dev)
+      value: ${RADAR_CLIENT_KEY:}
     admin: # usado só na 1ª subida, se não existir nenhum usuário
       email: ${ADMIN_EMAIL:}
       password: ${ADMIN_PASSWORD:}
