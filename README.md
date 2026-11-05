@@ -68,6 +68,10 @@ Pré-requisitos: Java 17 e PostgreSQL com um banco `radarciudad_db`.
 | `JWT_SECRET` | Segredo do JWT em Base64, com pelo menos 32 bytes |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Cria o primeiro admin na subida (senha com 12 caracteres ou mais) |
 | `GA_CREDENTIALS_PATH` | Caminho da chave JSON da service account do Google |
+| `DB_URL` | URL JDBC do banco (em dev o padrão é `localhost:5432/radarciudad_db`; obrigatória em produção) |
+| `RADAR_CLIENT_KEY` | Segredo compartilhado com o BFF, enviado no header `X-Radar-Client-Key` (32+ caracteres; obrigatório em produção) |
+| `CORS_ALLOWED_ORIGINS` | Origens liberadas para chamar a API do navegador (vazio em produção) |
+| `SPRING_PROFILES_ACTIVE` | `prod` na VPS |
 
 ```bash
 ./mvnw spring-boot:run
