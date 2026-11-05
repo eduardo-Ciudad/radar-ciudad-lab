@@ -9,12 +9,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -30,6 +33,7 @@ class SecurityIT {
     @Autowired MockMvc mvc;
     @Autowired UserRepository users;
     @Autowired PasswordEncoder passwordEncoder;
+    @Autowired NamedParameterJdbcTemplate jdbc;
 
     @BeforeEach
     void criaUsuarios() {
@@ -49,7 +53,34 @@ class SecurityIT {
         mvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(credentials("admin@teste.local", "senha-errada")))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("WWW-Authenticate", "Bearer"))
+                .andExpect(jsonPath("$.title").value("Falha no login"))
+                .andExpect(jsonPath("$.detail").value("E-mail ou senha inválidos"));
+    }
+
+    @Test
+    void emailInexistenteRecebeMesmaRespostaQueSenhaErrada() throws Exception {
+        // Se a resposta fosse diferente, daria para descobrir quais e-mails têm conta
+        mvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(credentials("ninguem@teste.local", "senha-qualquer-123")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.title").value("Falha no login"))
+                .andExpect(jsonPath("$.detail").value("E-mail ou senha inválidos"));
+    }
+
+    @Test
+    void usuarioDesativadoRecebe401Generico() throws Exception {
+        jdbc.update("UPDATE app_user SET active = FALSE WHERE lower(email) = lower(:email)",
+                new MapSqlParameterSource("email", "viewer@teste.local"));
+
+        mvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(credentials("viewer@teste.local", "senha-viewer-123")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.title").value("Falha no login"))
+                .andExpect(jsonPath("$.detail").value("E-mail ou senha inválidos"));
     }
 
     @Test

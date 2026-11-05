@@ -4,9 +4,12 @@ import com.eduar.radarciudadlab.domain.exception.DuplicateImportException;
 import com.eduar.radarciudadlab.domain.exception.InvalidLeadFileException;
 import com.eduar.radarciudadlab.domain.exception.LeadNotFoundException;
 import com.eduar.radarciudadlab.domain.exception.SiteNotFoundException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -15,7 +18,6 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
-import javax.naming.AuthenticationException;
 import java.time.temporal.Temporal;
 import java.util.stream.Collectors;
 
@@ -48,9 +50,16 @@ public class ApiExceptionHandler {
                 "O parâmetro '" + e.getName() + "' está em formato inválido." + hint);
     }
 
+    /**
+     * Falha no POST /api/auth/login: senha errada, e-mail inexistente ou usuário desativado.
+     * Resposta idêntica nos três casos, para não revelar quais e-mails existem (enumeração de usuários).
+     * O header WWW-Authenticate segue o mesmo padrão dos 401 do JsonAuthErrorHandler.
+     */
     @ExceptionHandler(AuthenticationException.class)
-    public ProblemDetail authenticationFailed(AuthenticationException e) {
-        return problem(HttpStatus.UNAUTHORIZED, "Falha no login", "E-mail ou senha inválidos");
+    public ResponseEntity<ProblemDetail> authenticationFailed(AuthenticationException e) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .header(HttpHeaders.WWW_AUTHENTICATE, "Bearer")
+                .body(problem(HttpStatus.UNAUTHORIZED, "Falha no login", "E-mail ou senha inválidos"));
     }
 
     /** Corpo da requisição inválido (ex.: e-mail sem @, senha em branco). */

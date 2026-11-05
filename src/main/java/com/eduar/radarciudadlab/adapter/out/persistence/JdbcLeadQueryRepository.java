@@ -214,6 +214,8 @@ public class JdbcLeadQueryRepository implements LeadQueryRepository {
         String search = TextNormalizer.normalize(f.search());
         if (!search.isEmpty()) {
             // O começo da dedup_key é o nome já sem acento e em minúsculas: busca "clinica" acha "Clínica"
+            // Sem ESCAPE no LIKE de propósito: o TextNormalizer troca tudo que não é [a-z0-9] por espaço,
+            // então os curingas % e _ nunca chegam aqui (garantido no TextNormalizerTest).
             String byName = "split_part(l.dedup_key, '|', 1) LIKE :search";
             params.addValue("search", "%" + search + "%");
             String digits = search.replaceAll("\\D", "");
